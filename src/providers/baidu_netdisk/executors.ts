@@ -1,13 +1,19 @@
-import type { CredentialValidators, ProviderExecutors } from "../../core/types.ts";
+import type { CredentialValidators, ProviderExecutors, TransitFileWriter } from "../../core/types.ts";
 
 import { optionalString, requiredString } from "../../core/cast.ts";
 import { defineProviderExecutors, requireOAuthCredential } from "../provider-runtime.ts";
 import { executeBaiduNetdiskMcpAction, verifyBaiduNetdiskMcpConnection } from "./runtime-mcp.ts";
-import { fetchBaiduNetdiskAccount, getBaiduNetdiskQuota } from "./runtime.ts";
+import {
+  createBaiduNetdiskFolder,
+  downloadBaiduNetdiskFile,
+  fetchBaiduNetdiskAccount,
+  getBaiduNetdiskQuota,
+} from "./runtime.ts";
 
 interface BaiduNetdiskContext {
   accessToken: string;
   fetcher: typeof fetch;
+  transitFiles?: TransitFileWriter;
   signal?: AbortSignal;
 }
 
@@ -24,6 +30,12 @@ const handlers: Record<string, (input: Record<string, unknown>, context: BaiduNe
   get_quota(_input, context) {
     return getBaiduNetdiskQuota(context);
   },
+  download_file(input, context) {
+    return downloadBaiduNetdiskFile(input, context);
+  },
+  create_folder(input, context) {
+    return createBaiduNetdiskFolder(input, context);
+  },
 };
 
 for (const actionName of [
@@ -32,7 +44,7 @@ for (const actionName of [
   "semantic_search_files",
   "upload_file_from_url",
   "create_text_file",
-  "create_folder",
+  "create_share_link",
   "copy",
   "move",
   "rename",
@@ -45,7 +57,12 @@ export const executors: ProviderExecutors = defineProviderExecutors({
   handlers,
   async createContext(context, fetcher) {
     const credential = await requireOAuthCredential(context, "baidu_netdisk");
-    return { accessToken: credential.accessToken, fetcher, signal: context.signal };
+    return {
+      accessToken: credential.accessToken,
+      fetcher,
+      transitFiles: context.transitFiles,
+      signal: context.signal,
+    };
   },
   skipDnsValidation: true,
 });
